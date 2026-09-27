@@ -6,8 +6,32 @@
 
 ![The Setup Wizard, opened on a Magento store that is not installed yet](docs/images/install-01-open.png)
 
+## Quick start
+
+Both options need access keys from [repo.magento.com](https://commercemarketplace.adobe.com/customer/accessKeys/).
+
+### Magento + Setup Wizard (configuration page in the browser)
+
+Downloads Magento and adds the module. Then open the store URL in the browser and the wizard's configuration page guides you through the installation, with no `bin/magento setup:install` on the command line:
+
+```bash
+composer create-project --repository-url=https://repo.magento.com/ magento/project-community-edition .
+composer require jamacio/module-setup-wizard
+```
+
+Run the commands inside the Magento directory; it must be empty. Point the web server's document root to its `pub` folder and open the store, for example `http://localhost/`. The full walkthrough is in [Step by step](#step-by-step-install-and-configure-magento-2).
+
+### Magento only
+
+Downloads Magento without the module. There is no configuration page in the browser: Magento 2.4 must then be installed on the command line with `bin/magento setup:install`, and it requires OpenSearch or Elasticsearch:
+
+```bash
+composer create-project --repository-url=https://repo.magento.com/ magento/project-community-edition .
+```
+
 ## Contents
 
+- [Quick start](#quick-start)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Step by step: install and configure Magento 2](#step-by-step-install-and-configure-magento-2)
