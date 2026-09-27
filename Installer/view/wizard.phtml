@@ -632,9 +632,6 @@ $scriptText = $translator->exportForScript([
             <?php if (!empty($installedUrls['admin'])): ?>
                 <a class="btn" href="<?= $e($installedUrls['admin']) ?>"><?= $t('Open the admin') ?></a>
             <?php endif; ?>
-            <?php if ($job !== null): ?>
-                <a class="btn" href="?job=<?= $e($job['id']) ?>"><?= $t('View the log of the last run') ?></a>
-            <?php endif; ?>
         </div>
     </section>
 <?php endif; ?>

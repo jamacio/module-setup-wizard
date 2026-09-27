@@ -22,9 +22,10 @@ final class Intercept
     private const BOOTSTRAP_CLASS = 'Magento\\Framework\\App\\Bootstrap';
 
     /**
-     * After installation, the progress page of a run keeps working for this long.
+     * After a run finishes, its status JSON is still answered for this long, so the progress
+     * page that was open (even in a throttled background tab) can show the final result.
      */
-    private const RECENT_JOB_SECONDS = 1800;
+    private const FINAL_STATUS_SECONDS = 300;
 
     private static bool $armed = false;
 
@@ -34,7 +35,7 @@ final class Intercept
             return;
         }
         $paths = new Paths(BP);
-        if ((new EnvFile($paths->envFile()))->isInstalled() && !self::isRecentJobRequest($paths)) {
+        if ((new EnvFile($paths->envFile()))->isInstalled() && !self::isActiveJobRequest($paths)) {
             return;
         }
         self::$armed = true;
@@ -69,14 +70,19 @@ final class Intercept
 
     /**
      * Once env.php has an install date (at the end of setup:install, or at the start of an
-     * existing-database run), only the page and status requests of a recent run are answered,
-     * and only for the browser that started it (owner cookie). Anyone else gets Magento.
+     * existing-database run), only the browser that started the run (owner cookie) is answered:
+     * the progress page while the run is still going, and the status JSON until shortly after it
+     * ends. Anyone else, and any request after that, gets Magento.
      */
-    private static function isRecentJobRequest(Paths $paths): bool
+    private static function isActiveJobRequest(Paths $paths): bool
     {
         $id = (string) ($_GET['job'] ?? '');
         $jobs = new JobManager($paths);
+        if ($id === '' || !$jobs->isOwnedByRequest($id)) {
+            return false;
+        }
+        $isStatusPoll = ($_GET['action'] ?? '') === 'status';
 
-        return $id !== '' && $jobs->isOwnedByRequest($id) && $jobs->isRecent($id, self::RECENT_JOB_SECONDS);
+        return $jobs->isRecent($id, $isStatusPoll ? self::FINAL_STATUS_SECONDS : 0);
     }
 }

@@ -22,6 +22,12 @@ final class Planner
     }
 
     /**
+     * Magento_SampleData ships with every Magento: it is only the framework that installs the
+     * data of the other modules, so on its own there is no sample data to install.
+     */
+    private const SAMPLE_DATA_FRAMEWORK = 'Magento_SampleData';
+
+    /**
      * Sample data modules in the codebase (Magento_*SampleData, added by "bin/magento sampledata:deploy").
      * setup:install installs their data whenever they are enabled; --use-sample-data does not change that.
      *
@@ -31,7 +37,10 @@ final class Planner
     {
         $modules = array_keys((new ComponentRegistrar())->getPaths(ComponentRegistrar::MODULE));
 
-        return array_values(array_filter($modules, static fn (string $module): bool => str_ends_with($module, 'SampleData')));
+        return array_values(array_filter(
+            $modules,
+            static fn (string $module): bool => $module !== self::SAMPLE_DATA_FRAMEWORK && str_ends_with($module, 'SampleData')
+        ));
     }
 
     /**

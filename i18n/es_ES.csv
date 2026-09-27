@@ -168,7 +168,6 @@
 "The wizard stays locked while %1 has an install date (%2). To use it again, remove or rename that file.","El asistente permanece bloqueado mientras %1 tenga fecha de instalación (%2). Para usarlo de nuevo, elimina o renombra ese archivo."
 "Open the storefront","Abrir la tienda"
 "Open the admin","Abrir el admin"
-"View the log of the last run","Ver el registro de la última ejecución"
 "Unexpected server response (HTTP %1).","Respuesta inesperada del servidor (HTTP %1)."
 "Could not continue.","No se pudo continuar."
 "Testing…","Probando…"

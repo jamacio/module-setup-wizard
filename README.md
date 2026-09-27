@@ -21,6 +21,12 @@ composer require jamacio/module-setup-wizard
 
 Run the commands inside the Magento directory; it must be empty. Point the web server's document root to its `pub` folder and open the store, for example `http://localhost/`. The full walkthrough is in [Step by step](#step-by-step-install-and-configure-magento-2).
 
+For the Luma demo store (products, categories, CMS pages), also download the sample data before opening the wizard; without it the **Install sample data** option stays disabled:
+
+```bash
+bin/magento sampledata:deploy
+```
+
 ### Magento only
 
 Downloads Magento without the module. There is no configuration page in the browser: Magento 2.4 must then be installed on the command line with `bin/magento setup:install`, and it requires OpenSearch or Elasticsearch:
@@ -359,7 +365,7 @@ Browser ── any URL ──> web server (Nginx try_files / Apache .htaccess) �
 ## Security
 
 - Once installed, the wizard is off: Magento serves every URL, and the wizard rejects any POST. To run it again, remove or rename `app/etc/env.php`.
-- **The progress page and the log are private to the browser that started the run.** Starting a run sets an `HttpOnly`, `SameSite=Strict` cookie with a random 256-bit token; the job's `status.json` stores only its SHA-256 hash. Without that cookie, `?job=<id>` and the status endpoint answer "not found". After installation, anyone else gets the Magento store at that URL. The owner can still see the final result for 30 minutes.
+- **The progress page and the log are private to the browser that started the run.** Starting a run sets an `HttpOnly`, `SameSite=Strict` cookie with a random 256-bit token; the job's `status.json` stores only its SHA-256 hash. Without that cookie, `?job=<id>` and the status endpoint answer "not found". Once the run has finished and Magento is installed, `?job=<id>` serves the Magento store for everyone, including the owner; only the status endpoint keeps answering the owner for 5 minutes, so a progress page that was already open can show the final result.
 - While a run is in progress, another browser sees only "An installation is running", without the log.
 - POST requests require a per-session CSRF token.
 - Passwords live in the job file only until the runner starts; the file has mode `0600` and sits under `var/`, outside the web root. In the log they are masked as `******`.
@@ -411,7 +417,7 @@ Magento Open Source **2.4.8-p2**, PHP 8.4, MariaDB 10.3, OpenSearch 2.12 and Red
 - **Zero configuration, end to end.** The copy was served by a plain PHP web server that only does what any Magento server does: serve existing files, send everything else to `index.php`.
     - With no `env.php`, `/`, `/setup/` and any other URL showed the wizard, with no redirect loop.
     - A fresh install was submitted through the wizard over HTTP, as a browser would: MySQL search engine, no sample data. All three steps succeeded.
-    - Afterwards `/` served the Magento home page and unknown URLs returned Magento's own 404, while the progress page (`?job=<id>`) still reported the result.
+    - Afterwards `/` served the Magento home page and unknown URLs returned Magento's own 404.
     - On the project's real Nginx, with the module present and the store installed, `/` served the store and `/setup/` returned Magento's 404.
 
 - **Fresh install without sample data.** 0 products, customers and orders; the 20 sample data modules left disabled.

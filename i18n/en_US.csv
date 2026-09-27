@@ -168,7 +168,6 @@
 "The wizard stays locked while %1 has an install date (%2). To use it again, remove or rename that file.","The wizard stays locked while %1 has an install date (%2). To use it again, remove or rename that file."
 "Open the storefront","Open the storefront"
 "Open the admin","Open the admin"
-"View the log of the last run","View the log of the last run"
 "Unexpected server response (HTTP %1).","Unexpected server response (HTTP %1)."
 "Could not continue.","Could not continue."
 "Testing…","Testing…"
