@@ -69,6 +69,14 @@ final class Paths
         return __DIR__ . '/bin/prepare-sample-data.php';
     }
 
+    /**
+     * Empties var/cache and var/page_cache before the final cache:flush (see the script header).
+     */
+    public function fileCacheCleaner(): string
+    {
+        return __DIR__ . '/bin/clear-file-cache.php';
+    }
+
     public function view(string $name): string
     {
         return __DIR__ . '/view/' . $name;

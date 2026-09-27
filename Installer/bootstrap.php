@@ -2,7 +2,7 @@
 /**
  * Copyright © Jamacio. All rights reserved.
  *
- * Bootstrap for the wizard's CLI scripts (bin/run-job.php, bin/save-mysql-search.php).
+ * Bootstrap for the wizard's CLI scripts (bin/run-job.php, bin/save-mysql-search.php, ...).
  * It must work while Magento is NOT installed, so it only loads the Composer
  * autoloader (no object manager, no deployment config). The web side needs no bootstrap:
  * it runs inside Magento's own index.php, see Intercept.php.

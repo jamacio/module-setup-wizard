@@ -188,7 +188,7 @@ The page follows the background job: each step, the elapsed time and the live ou
 
 ![Installation running](docs/images/install-10-running.png)
 
-When it finishes, the page links to the new store and its admin:
+When it finishes, the page links to the new store and its admin, and after 5 seconds it opens the storefront:
 
 ![Installation finished](docs/images/install-11-finished.png)
 
@@ -244,7 +244,7 @@ What the wizard does, in order:
 1. Checks that the database contains the Magento tables.
 2. Updates `core_config_data`: sets the base URL, optionally clears the inherited URLs and cookie domain, and writes the search engine configuration, replacing the production host.
 3. Writes `app/etc/env.php` with the database connection, encryption key, admin path, cache and session settings, and the install date. A previous `env.php` is kept as `env.php.bak-<timestamp>`.
-4. Runs the selected commands in the background: `module:disable` for 2FA, `setup:upgrade`, `admin:user:create`, `indexer:reindex` and `cache:flush`.
+4. Runs the selected commands in the background: `module:disable` for 2FA, `setup:upgrade`, `admin:user:create`, `indexer:reindex`, then empties the cache files and runs `cache:flush` (see [Troubleshooting](#troubleshooting)).
 
 ## Search engines
 
@@ -375,6 +375,7 @@ Browser ── any URL ──> web server (Nginx try_files / Apache .htaccess) �
 
 | Symptom                                                    | Cause and fix                                                                                                                                                                                             |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The home page still shows the previous install (e.g. empty after reinstalling with sample data) | Old full page cache entries. Since Magento 2.4.9 the file caches keep their tag index in `var/cache/symfony`, which `setup:install` empties, so entries in `var/page_cache` survive `cache:flush`. The wizard's **Clearing the cache files** step (`Installer/bin/clear-file-cache.php`) now empties both folders; on an older install run `rm -rf var/cache/* var/page_cache/*` and `bin/magento cache:flush`. |
 | `ERR_TOO_MANY_REDIRECTS` on `/setup/`                      | The module is not in the codebase, or `app/etc/NonComposerComponentRegistration.php` does not list `app/code` (so `registration.php` never runs). Check the module path and run `composer dump-autoload`. |
 | Magento's "use the command line" page appears on `/setup/` | The document root is the project root (not `pub/`), and `/setup/` is served from Magento's `setup/` folder. Open the store root `/` instead.                                                              |
 | "PHP CLI binary not found"                                 | PHP-FPM cannot find the `php` CLI. Set the `PHP_CLI_BINARY` environment variable for PHP-FPM.                                                                                                             |
@@ -406,6 +407,7 @@ Jamacio/SetupWizard
 │   ├── StoreLocaleOptions.php, Translator.php
 │   ├── bin/run-job.php           background runner
 │   ├── bin/save-mysql-search.php
+│   ├── bin/prepare-sample-data.php, bin/clear-file-cache.php
 │   └── view/wizard.phtml, view/magento-logo.png
 └── docs/images/                  screenshots used in this README
 ```

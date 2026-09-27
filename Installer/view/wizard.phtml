@@ -36,7 +36,7 @@ $scriptText = $translator->exportForScript([
     'Testing…', 'Test connections', 'Test', 'Database', 'Search engine', 'Redis', 'Could not continue.',
     'Unexpected server response (HTTP %1).', 'Queued', 'Running', 'Done', 'Failed', 'Configuring the store',
     'Installing Magento', 'Done!', 'The store is live.', 'Open the storefront', 'Open the admin', '(user: %1)',
-    'The run failed. See the log.',
+    'The run failed. See the log.', 'Opening the storefront in %1 s…',
 ]);
 ?>
 <!doctype html>
@@ -845,7 +845,26 @@ $scriptText = $translator->exportForScript([
             render(status);
             if (status.state === 'queued' || status.state === 'running') {
                 setTimeout(poll, status.log ? 500 : 1500);
+            } else if (status.state === 'success') {
+                redirectToStore(status.meta.store_url);
             }
+        };
+
+        // After a successful run the wizard URL serves Magento anyway: take the user to the store.
+        const redirectToStore = (url) => {
+            let seconds = 5;
+            const notice = el('span', 'sub', '');
+            $('#job-result').append(el('br'), notice);
+            const tick = () => {
+                if (seconds === 0) {
+                    location.replace(url);
+                    return;
+                }
+                notice.textContent = __('Opening the storefront in %1 s…', seconds);
+                seconds--;
+                setTimeout(tick, 1000);
+            };
+            tick();
         };
         render(ctx.job);
         poll();

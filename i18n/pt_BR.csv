@@ -195,3 +195,5 @@
 "MySQL (basic, no search service)","MySQL (básico, sem serviço de busca)"
 "An installation is running","Uma instalação está em andamento"
 "It was started in another browser; its progress and log are only visible there. Reload this page when it has finished.","Ela foi iniciada em outro navegador; o progresso e o log só aparecem lá. Recarregue esta página quando ela terminar."
+"Clearing the cache files","Limpando os arquivos de cache"
+"Opening the storefront in %1 s…","Abrindo a loja em %1 s…"

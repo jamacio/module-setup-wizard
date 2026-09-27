@@ -149,6 +149,7 @@ final class Planner
             }
         }
 
+        $steps[] = ['label' => (string) __('Clearing the cache files'), 'argv' => [$this->php, $this->paths->fileCacheCleaner()]];
         $steps[] = ['label' => (string) __('Flushing the cache'), 'argv' => $this->magento(['cache:flush'])];
 
         return $steps;
