@@ -88,6 +88,7 @@ final class App
             'installedUrls' => $installed ? $this->installedUrls() : null,
             'searchEngines' => Input::SEARCH_ENGINES,
             'sampleDataAvailable' => Planner::sampleDataModules() !== [],
+            'repoCredentialsConfigured' => $view === 'form' && Planner::hasRepoCredentials($this->paths),
             'storeLocales' => $view === 'form' ? [
                 'languages' => StoreLocaleOptions::languages($this->translator->locale()),
                 'currencies' => StoreLocaleOptions::currencies($this->translator->locale()),
@@ -153,7 +154,7 @@ final class App
         }
 
         $in = Input::normalize($_POST);
-        $errors = Input::validate($in);
+        $errors = Input::validate($in) + $this->sampleDataErrors($in);
         if ($errors !== []) {
             $this->json(['ok' => false, 'message' => (string) __('Fix the highlighted fields.'), 'errors' => $errors], 422);
             return;
@@ -237,6 +238,44 @@ final class App
             'samesite' => 'Strict',
         ]);
         $this->json(['ok' => true, 'job' => $id]);
+    }
+
+    /**
+     * Downloading the sample data needs repo.magento.com keys (typed in the form or already in an
+     * auth.json) and write access to the Composer files.
+     *
+     * @return array<string, string>
+     */
+    private function sampleDataErrors(array $in): array
+    {
+        if (!Planner::needsSampleDataDeploy($in)) {
+            return [];
+        }
+        $errors = [];
+        $keys = $in['repo'];
+        if ($keys['public_key'] === '' && $keys['private_key'] === '') {
+            if (!Planner::hasRepoCredentials($this->paths)) {
+                $errors['repo.public_key'] = (string) __('Enter the public key.');
+                $errors['repo.private_key'] = (string) __('Enter the private key.');
+            }
+        } elseif ($keys['public_key'] === '') {
+            $errors['repo.public_key'] = (string) __('Enter the public key.');
+        } elseif ($keys['private_key'] === '') {
+            $errors['repo.private_key'] = (string) __('Enter the private key.');
+        }
+
+        $notWritable = array_values(array_filter(
+            Planner::SAMPLE_DATA_DEPLOY_WRITABLE,
+            fn (string $file): bool => file_exists($this->paths->path($file)) && !is_writable($this->paths->path($file))
+        ));
+        if ($notWritable !== []) {
+            $errors['options.sample_data'] = (string) __(
+                'Downloading the sample data needs write access to %1.',
+                implode(', ', $notWritable)
+            );
+        }
+
+        return $errors;
     }
 
     /**

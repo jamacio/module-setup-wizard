@@ -21,11 +21,7 @@ composer require jamacio/module-setup-wizard
 
 Run the commands inside the Magento directory; it must be empty. Point the web server's document root to its `pub` folder and open the store, for example `http://localhost/`. The full walkthrough is in [Step by step](#step-by-step-install-and-configure-magento-2).
 
-For the Luma demo store (products, categories, CMS pages), also download the sample data before opening the wizard; without it the **Install sample data** option stays disabled:
-
-```bash
-bin/magento sampledata:deploy
-```
+For the Luma demo store (products, categories, CMS pages), tick **Install sample data** in the wizard. If the sample data is not in the codebase yet, the wizard asks for your repo.magento.com access keys and downloads it before installing. Do not have the keys? Create them at [commercemarketplace.adobe.com/customer/accessKeys](https://commercemarketplace.adobe.com/customer/accessKeys/).
 
 ### Magento only
 
@@ -93,7 +89,7 @@ If you do not have a Magento project yet, create one with Composer. This needs a
 composer create-project --repository-url=https://repo.magento.com/ magento/project-community-edition magento2
 ```
 
-Point the web server's document root to `magento2/pub`, as for any Magento store. For the Luma demo store, also run `bin/magento sampledata:deploy` (see [Sample data](#sample-data)).
+Point the web server's document root to `magento2/pub`, as for any Magento store. For the Luma demo store, the wizard can download the sample data itself (see [Sample data](#sample-data)).
 
 ### Step 2. Add the module
 
@@ -303,7 +299,11 @@ The engine code is `mysql_basic` rather than `mysql`, because Magento 2.4 reject
 
 - **Ticked:** installs the Luma demo store, with products, categories, CMS pages, customers and orders. The wizard passes the sample data modules to `--enable-modules`. This matters because `app/etc/config.php` survives reinstalls, even with **Drop existing tables**, and `setup:install` keeps the module status it finds there: after an install without sample data, the modules would otherwise stay disabled. A **Preparing the sample data media** step also runs before `setup:install` (see below).
 - **Unticked:** the wizard passes the sample data modules to `--disable-modules`, and the store starts empty. The modules stay in the code; to install the data later, enable them with `bin/magento module:enable` and run `bin/magento setup:upgrade`.
-- **No sample data in the codebase:** the option is disabled, with a hint. Sample data can be added with `bin/magento sampledata:deploy`, which needs repo.magento.com keys.
+- **No sample data in the codebase:** the option is unticked. Ticking it shows two fields for the repo.magento.com access keys (public and private), with a link to [commercemarketplace.adobe.com/customer/accessKeys](https://commercemarketplace.adobe.com/customer/accessKeys/) to create them. A **Downloading the sample data** step then runs `bin/magento sampledata:deploy` before `setup:install`.
+    - The keys are passed to Composer only through the `COMPOSER_AUTH` environment variable of that step; they are not written to `auth.json` and are masked as `******` in the log.
+    - If `auth.json` in the project or in `var/composer_home/` already has repo.magento.com keys, the fields can be left empty.
+    - The PHP user needs write access to `composer.json`, `composer.lock` and `vendor/`, because `sampledata:deploy` runs `composer require`.
+    - `Magento_SampleData` alone, which ships with every Magento, does not count as sample data: it only installs the data of the other modules.
 
 The option only exists for a fresh install. With an existing database, the data comes from the database.
 
@@ -368,7 +368,7 @@ Browser ── any URL ──> web server (Nginx try_files / Apache .htaccess) �
 - **The progress page and the log are private to the browser that started the run.** Starting a run sets an `HttpOnly`, `SameSite=Strict` cookie with a random 256-bit token; the job's `status.json` stores only its SHA-256 hash. Without that cookie, `?job=<id>` and the status endpoint answer "not found". Once the run has finished and Magento is installed, `?job=<id>` serves the Magento store for everyone, including the owner; only the status endpoint keeps answering the owner for 5 minutes, so a progress page that was already open can show the final result.
 - While a run is in progress, another browser sees only "An installation is running", without the log.
 - POST requests require a per-session CSRF token.
-- Passwords live in the job file only until the runner starts; the file has mode `0600` and sits under `var/`, outside the web root. In the log they are masked as `******`.
+- Passwords and repo.magento.com keys live in the job file only until the runner starts; the file has mode `0600` and sits under `var/`, outside the web root. In the log they are masked as `******`.
 - While a store is **not** installed, anyone who can reach it can install it, exactly as with the original Magento wizard. Do not leave a public environment in that state.
 
 ## Troubleshooting

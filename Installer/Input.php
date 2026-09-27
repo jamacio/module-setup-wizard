@@ -38,6 +38,7 @@ final class Input
         $search = (array) ($post['search'] ?? []);
         $redis = (array) ($post['redis'] ?? []);
         $options = (array) ($post['options'] ?? []);
+        $repo = (array) ($post['repo'] ?? []);
 
         $baseUrl = $text($post, 'base_url');
         if ($baseUrl !== '' && !str_ends_with($baseUrl, '/')) {
@@ -85,6 +86,11 @@ final class Input
                 'port' => (int) $text($redis, 'port', '6379'),
             ],
             'crypt_key' => $text($post, 'crypt_key'),
+            // repo.magento.com access keys, used only to download the sample data.
+            'repo' => [
+                'public_key' => $text($repo, 'public_key'),
+                'private_key' => $text($repo, 'private_key'),
+            ],
             'options' => [
                 'cleanup_db' => $flag($options, 'cleanup_db'),
                 'sample_data' => $flag($options, 'sample_data'),

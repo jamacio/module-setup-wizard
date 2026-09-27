@@ -28,6 +28,16 @@ final class Planner
     private const SAMPLE_DATA_FRAMEWORK = 'Magento_SampleData';
 
     /**
+     * Composer repository of the Magento packages, including the sample data.
+     */
+    public const REPO_HOST = 'repo.magento.com';
+
+    /**
+     * Composer files that "bin/magento sampledata:deploy" (composer require) changes.
+     */
+    public const SAMPLE_DATA_DEPLOY_WRITABLE = ['composer.json', 'composer.lock', 'vendor'];
+
+    /**
      * Sample data modules in the codebase (Magento_*SampleData, added by "bin/magento sampledata:deploy").
      * setup:install installs their data whenever they are enabled; --use-sample-data does not change that.
      *
@@ -44,13 +54,54 @@ final class Planner
     }
 
     /**
-     * @return list<array{label: string, argv: list<string>}>
+     * Sample data was asked for but is not in the codebase yet: the job downloads it first.
+     */
+    public static function needsSampleDataDeploy(array $in): bool
+    {
+        return $in['mode'] === Input::MODE_NEW && $in['options']['sample_data'] && self::sampleDataModules() === [];
+    }
+
+    /**
+     * Whether an auth.json Composer reads during sampledata:deploy already has repo.magento.com keys:
+     * the project's own, or the one in Magento's Composer home (var/composer_home).
+     */
+    public static function hasRepoCredentials(Paths $paths): bool
+    {
+        foreach (['auth.json', 'var/composer_home/auth.json'] as $file) {
+            $path = $paths->path($file);
+            $auth = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+            if (is_array($auth) && !empty($auth['http-basic'][self::REPO_HOST]['username'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{label: string, argv: list<string>, env?: array<string, string>}>
      */
     public function plan(array $in): array
     {
         $steps = [];
         if ($in['mode'] === Input::MODE_NEW) {
-            if ($in['options']['sample_data'] && self::sampleDataModules() !== []) {
+            if (self::needsSampleDataDeploy($in)) {
+                $step = [
+                    'label' => (string) __('Downloading the sample data (sampledata:deploy)'),
+                    'argv' => $this->magento(['sampledata:deploy', '--no-interaction']),
+                ];
+                if ($in['repo']['public_key'] !== '') {
+                    // Only in the environment of this step: the keys are never written to auth.json.
+                    $step['env'] = ['COMPOSER_AUTH' => json_encode([
+                        'http-basic' => [self::REPO_HOST => [
+                            'username' => $in['repo']['public_key'],
+                            'password' => $in['repo']['private_key'],
+                        ]],
+                    ])];
+                }
+                $steps[] = $step;
+            }
+            if ($in['options']['sample_data']) {
                 $steps[] = [
                     'label' => (string) __('Preparing the sample data media'),
                     'argv' => [$this->php, $this->paths->sampleDataPreparer()],
@@ -110,7 +161,10 @@ final class Planner
      */
     public static function secrets(array $in): array
     {
-        return array_values(array_filter([$in['db']['password'], $in['admin']['password'], $in['crypt_key']], 'strlen'));
+        return array_values(array_filter(
+            [$in['db']['password'], $in['admin']['password'], $in['crypt_key'], $in['repo']['public_key'], $in['repo']['private_key']],
+            'strlen'
+        ));
     }
 
     private function installArguments(array $in): array
@@ -163,6 +217,7 @@ final class Planner
         if ($in['options']['cleanup_db']) {
             $args[] = '--cleanup-database';
         }
+        // After sampledata:deploy the modules are new to app/etc/config.php, and setup:install enables new modules.
         if (self::sampleDataModules() !== []) {
             // Always explicit: app/etc/config.php survives reinstalls (even with --cleanup-database)
             // and setup:install keeps the module status found there, so a previous install without

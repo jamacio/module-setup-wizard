@@ -11,6 +11,7 @@
  * @var array|null $installedUrls
  * @var array $searchEngines
  * @var bool $sampleDataAvailable
+ * @var bool $repoCredentialsConfigured repo.magento.com keys already in an auth.json
  * @var array{languages: array<string, string>, currencies: array<string, string>, timezones: array<string, string>} $storeLocales
  * @var string $locale Wizard language
  * @var array<string, string> $languages
@@ -158,6 +159,8 @@ $scriptText = $translator->exportForScript([
         /* Form */
         .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
         .grid .wide { grid-column: 1 / -1; }
+        .grid > p.hint { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+        #repo-keys { margin: 0 0 10px 28px; }
         @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
         label.lbl { display: block; font-size: 13px; font-weight: 500; letter-spacing: .02em; margin-bottom: 6px; }
         input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], select {
@@ -534,15 +537,36 @@ $scriptText = $translator->exportForScript([
                     <small><?= $t('Required when the database is not empty. All data in the database will be lost.') ?></small>
                     <small class="error"></small></span>
                 </label>
-                <label class="check">
-                    <input type="checkbox" name="options[sample_data]" value="1" <?= $sampleDataAvailable ? 'checked' : 'disabled' ?>>
+                <label class="check field" data-field="options.sample_data">
+                    <input type="checkbox" name="options[sample_data]" value="1" id="sample-data" <?= $sampleDataAvailable ? 'checked' : '' ?>>
                     <span><b><?= $t('Install sample data') ?></b>
                     <?php if ($sampleDataAvailable): ?>
                         <small><?= $t('Luma demo store: products, categories, CMS pages, customers and orders. Unticked, the store starts empty; the sample data modules stay in the code, disabled.') ?></small>
                     <?php else: ?>
-                        <small><?= $t('Sample data is not in this codebase. Add it with %1 (needs repo.magento.com keys) and reload this page.', '<code>bin/magento sampledata:deploy</code>') ?></small>
-                    <?php endif; ?></span>
+                        <small><?= $t('Luma demo store: products, categories, CMS pages, customers and orders. It is not in this codebase yet: the wizard downloads it from repo.magento.com (%1) before installing.', '<code>bin/magento sampledata:deploy</code>') ?></small>
+                    <?php endif; ?>
+                    <small class="error"></small></span>
                 </label>
+                <?php if (!$sampleDataAvailable): ?>
+                    <div class="grid" id="repo-keys" hidden>
+                        <p class="hint wide">
+                            <?= $t('Access keys of your Adobe Commerce Marketplace account. Do not have them? Create them for free at %1.', '<a href="https://commercemarketplace.adobe.com/customer/accessKeys/" target="_blank" rel="noopener noreferrer">commercemarketplace.adobe.com/customer/accessKeys</a>') ?>
+                            <?php if ($repoCredentialsConfigured): ?>
+                                <?= $t('Keys were found in %1; leave these fields empty to use them.', '<code>auth.json</code>') ?>
+                            <?php endif; ?>
+                        </p>
+                        <div class="field" data-field="repo.public_key">
+                            <label class="lbl" for="repo-public-key"><?= $t('Public key') ?></label>
+                            <input type="text" id="repo-public-key" name="repo[public_key]" autocomplete="off" spellcheck="false">
+                            <small class="error"></small>
+                        </div>
+                        <div class="field" data-field="repo.private_key">
+                            <label class="lbl" for="repo-private-key"><?= $t('Private key') ?></label>
+                            <input type="password" id="repo-private-key" name="repo[private_key]" autocomplete="off">
+                            <small class="error"></small>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <label class="check">
                     <input type="checkbox" name="options[use_rewrites]" value="1" checked>
                     <span><b><?= $t('Search engine friendly URLs') ?></b> <small><?= $t('Removes %1 from URLs.', '<code>index.php</code>') ?></small></span>
@@ -676,6 +700,8 @@ $scriptText = $translator->exportForScript([
             document.body.dataset.mode = mode;
             $('#admin-fields').hidden = mode === 'existing' && !$('#admin-enabled').checked;
             $('#redis-fields').hidden = !$('#redis-enabled').checked;
+            const repoKeys = $('#repo-keys');
+            if (repoKeys) repoKeys.hidden = !$('#sample-data').checked;
             $('#search-fields').style.opacity = mode === 'existing' && !$('#search-write').checked ? '.5' : '';
             const noSearchServer = form.elements['search[engine]'].value === 'mysql_basic';
             form.querySelectorAll('[data-search-server]').forEach(field => { field.hidden = noSearchServer; });

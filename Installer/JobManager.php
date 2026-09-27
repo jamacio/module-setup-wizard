@@ -207,7 +207,7 @@ final class JobManager
                 FILE_APPEND
             );
 
-            $exitCode = $this->exec($step['argv'], $logFile, $mask);
+            $exitCode = $this->exec($step['argv'], $step['env'] ?? [], $logFile, $mask);
             $status['steps'][$index]['state'] = $exitCode === 0 ? self::STATE_SUCCESS : self::STATE_FAILED;
 
             if ($exitCode !== 0) {
@@ -251,14 +251,17 @@ final class JobManager
 
     /**
      * Streams the command output into the log, masking secrets on the way.
+     *
+     * @param array<string, string> $env Variables added to the inherited environment.
      */
-    private function exec(array $argv, string $logFile, callable $mask): int
+    private function exec(array $argv, array $env, string $logFile, callable $mask): int
     {
         $process = proc_open(
             $argv,
             [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]],
             $pipes,
-            $this->paths->root()
+            $this->paths->root(),
+            $env === [] ? null : $env + getenv()
         );
         if (!is_resource($process)) {
             file_put_contents($logFile, __('Could not start the process.') . PHP_EOL, FILE_APPEND);
