@@ -1,0 +1,52 @@
+{
+    "name": "jamacio/module-setup-wizard",
+    "description": "Web Setup Wizard for Magento 2.4: install Magento or bring a store up from an existing database in the browser, with no web server configuration. Includes a basic MySQL search engine to run without OpenSearch/Elasticsearch.",
+    "type": "magento2-module",
+    "keywords": [
+        "magento",
+        "magento2",
+        "adobe-commerce",
+        "installer",
+        "setup-wizard",
+        "web-installer",
+        "sample-data",
+        "mysql-search"
+    ],
+    "homepage": "https://github.com/jamacio/module-setup-wizard",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jamacio",
+            "email": "jamacio@hotmail.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/jamacio/module-setup-wizard/issues",
+        "source": "https://github.com/jamacio/module-setup-wizard"
+    },
+    "require": {
+        "php": "~8.1.0||~8.2.0||~8.3.0||~8.4.0",
+        "ext-pdo_mysql": "*",
+        "magento/framework": "103.0.*",
+        "magento/module-search": "*",
+        "magento/module-catalog-search": "*",
+        "magento/module-advanced-search": "*",
+        "magento/module-elasticsearch": "*",
+        "magento/module-catalog": "*"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Jamacio\\SetupWizard\\": ""
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "minimum-stability": "stable"
+}

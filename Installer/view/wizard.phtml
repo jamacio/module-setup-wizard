@@ -1,0 +1,833 @@
+<?php
+/**
+ * Copyright © Jamacio. All rights reserved.
+ *
+ * @var string $view "form", "job", "busy" or "installed"
+ * @var string $csrf
+ * @var array|null $job
+ * @var array $requirements
+ * @var bool $requirementsPassed
+ * @var array $defaults
+ * @var array|null $installedUrls
+ * @var array $searchEngines
+ * @var bool $sampleDataAvailable
+ * @var array{languages: array<string, string>, currencies: array<string, string>, timezones: array<string, string>} $storeLocales
+ * @var string $locale Wizard language
+ * @var array<string, string> $languages
+ * @var \Jamacio\SetupWizard\Installer\Translator $translator
+ */
+$e = static fn ($value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+/**
+ * Translated and escaped text. %1, %2... are replaced by the given HTML fragments (not escaped),
+ * so markup such as <code> stays out of the translation files.
+ */
+$t = static function (string $text, string ...$html) use ($e): string {
+    $pairs = [];
+    foreach ($html as $index => $fragment) {
+        $pairs['%' . ($index + 1)] = $fragment;
+    }
+    return strtr($e(__($text)), $pairs);
+};
+$d = $defaults;
+// Inlined: the wizard answers from Magento's index.php before Magento boots, so there is no static file URL.
+$logo = 'data:image/png;base64,' . base64_encode((string) file_get_contents(__DIR__ . '/magento-logo.png'));
+$scriptText = $translator->exportForScript([
+    'Testing…', 'Test connections', 'Test', 'Database', 'Search engine', 'Redis', 'Could not continue.',
+    'Unexpected server response (HTTP %1).', 'Queued', 'Running', 'Done', 'Failed', 'Configuring the store',
+    'Installing Magento', 'Done!', 'The store is live.', 'Open the storefront', 'Open the admin', '(user: %1)',
+    'The run failed. See the log.',
+]);
+?>
+<!doctype html>
+<html lang="<?= $e(str_replace('_', '-', $locale)) ?>">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Adobe Magento 2 Setup Wizard</title>
+    <link rel="icon" type="image/png" href="<?= $logo ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+    <style>
+        /* Theme: "install console" — warm neutrals, Magento orange as the single accent
+           (primary action + selected mode only), IBM Plex Sans for UI, Plex Mono for machine text. */
+        :root {
+            --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+            --bg: #f4f2ef;
+            --surface: #fffefc;
+            --field: #f8f6f3;
+            --border: #e2ddd6;
+            --border-strong: #cbc4ba;
+            --fg: #1d1a17;
+            --muted: #686159;
+            --accent: #c4470f;
+            --accent-fg: #ffffff;
+            --accent-soft: #fdf1ea;
+            --focus: #c4470f;
+            --ok: #1f7a3f;
+            --ok-soft: #e9f4ec;
+            --warn: #8f5500;
+            --warn-soft: #fcf3e3;
+            --err: #b3261e;
+            --err-soft: #fcefed;
+            --log-bg: #1a1714;
+            --log-fg: #e9e4dd;
+            --log-muted: #8f877d;
+
+            --radius: 6px;
+            --radius-sm: 4px;
+            --ease: cubic-bezier(.2, .7, .2, 1);
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #121110;
+                --surface: #1a1816;
+                --field: #211e1b;
+                --border: #2e2a26;
+                --border-strong: #433d37;
+                --fg: #f0ede8;
+                --muted: #a39b91;
+                --accent: #f2743a;
+                --accent-fg: #1a1210;
+                --accent-soft: #2a1a12;
+                --focus: #f2743a;
+                --ok: #6fd394;
+                --ok-soft: #14271b;
+                --warn: #e9b44c;
+                --warn-soft: #2a2112;
+                --err: #f08a80;
+                --err-soft: #2c1614;
+                --log-bg: #0c0b0a;
+                --log-fg: #e9e4dd;
+                --log-muted: #7d766d;
+                color-scheme: dark;
+            }
+        }
+
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--bg); color: var(--fg);
+            font: 400 15px/1.55 var(--font-sans);
+            -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+        }
+        main { max-width: 960px; margin: 0 auto; padding: 40px 16px 72px; }
+        a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+        :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+        /* Header */
+        header.top { display: flex; align-items: center; gap: 16px; padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
+        .mark { width: 44px; height: 44px; border-radius: var(--radius); flex: none; display: block; }
+        h1 { font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 2px; }
+        .sub { color: var(--muted); margin: 0; font-size: 14px; }
+
+        /* Cards (requirements, job view) */
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 12px; }
+        .card h2 { font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -0.005em; margin: 0 0 4px; }
+        .card > p.hint { color: var(--muted); margin: 0 0 18px; font-size: 14px; max-width: 65ch; }
+
+        /* Form: settings-page layout — title and hint on the left, fields on the right, hairline dividers */
+        #wizard { margin-top: 28px; }
+        #wizard > section.card {
+            display: flow-root; background: none; border: 0; border-top: 1px solid var(--border);
+            border-radius: 0; padding: 32px 0; margin: 0;
+        }
+        #wizard > section.card > h2, #wizard > section.card > .hint { float: left; clear: left; width: 240px; }
+        #wizard > section.card > .hint { margin: 6px 0 0; font-size: 13.5px; }
+        #wizard > section.card > :not(h2):not(.hint) { margin-left: 280px; }
+        #wizard > details.card { background: none; border: 0; border-top: 1px solid var(--border); border-radius: 0; padding: 24px 0; margin: 0; }
+        #wizard > details.card > summary { color: var(--muted); font-weight: 500; }
+        #wizard > details.card > .grid { margin-left: 280px; }
+        #wizard > .actions { border-top: 1px solid var(--border); padding-top: 24px; margin-top: 0; }
+        @media (max-width: 760px) {
+            main { padding-top: 24px; }
+            h1 { font-size: 24px; }
+            .card { padding: 18px 16px; }
+            #wizard > section.card > h2, #wizard > section.card > .hint { float: none; width: auto; }
+            #wizard > section.card > .hint { margin-bottom: 16px; }
+            #wizard > section.card > :not(h2):not(.hint), #wizard > details.card > .grid { margin-left: 0; }
+            #wizard > section.card > h2 { margin-bottom: 16px; }
+            #wizard > section.card > .hint { margin-top: -12px; }
+        }
+
+        /* Form */
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
+        .grid .wide { grid-column: 1 / -1; }
+        @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+        label.lbl { display: block; font-size: 13px; font-weight: 500; letter-spacing: .02em; margin-bottom: 6px; }
+        input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], select {
+            width: 100%; min-height: 40px; padding: 8px 11px;
+            border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+            background: var(--field); color: var(--fg); font: inherit;
+            transition: border-color .12s var(--ease), background-color .12s var(--ease);
+        }
+        input::placeholder { color: var(--muted); opacity: .8; }
+        input:hover, select:hover { border-color: var(--muted); }
+        input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var(--focus); background: var(--surface); }
+        .field small.help { display: block; color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 6px; }
+        .field small.error { display: none; color: var(--err); font-size: 13px; font-weight: 500; margin-top: 6px; }
+        .field.invalid input, .field.invalid select { border-color: var(--err); }
+        .field.invalid small.error { display: block; }
+        .field.invalid small.help { display: none; }
+        .check { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; cursor: pointer; }
+        .check input { margin: 3px 0 0; accent-color: var(--fg); width: 16px; height: 16px; flex: none; }
+        .check span b { display: block; font-weight: 500; }
+        .check span small { color: var(--muted); font-size: 13px; }
+
+        /* Mode selector (accent use #2) */
+        .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 640px) { .modes { grid-template-columns: 1fr; } }
+        .mode {
+            position: relative; display: block; cursor: pointer;
+            border: 1px solid var(--border-strong); border-radius: var(--radius);
+            padding: 16px 16px 16px 44px; background: var(--field);
+            transition: border-color .15s var(--ease), background-color .15s var(--ease), box-shadow .15s var(--ease);
+        }
+        .mode:hover { border-color: var(--muted); }
+        .mode input { position: absolute; left: 16px; top: 19px; margin: 0; accent-color: var(--accent); width: 16px; height: 16px; }
+        .mode b { display: block; font-weight: 600; margin-bottom: 2px; }
+        .mode small { color: var(--muted); font-size: 13px; line-height: 1.5; }
+        .mode:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+        body[data-mode="new"] [data-only="existing"], body[data-mode="existing"] [data-only="new"] { display: none !important; }
+
+        /* Buttons (primary = accent use #1) */
+        .btn {
+            appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            min-height: 40px; padding: 8px 16px; border-radius: var(--radius-sm);
+            border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
+            font: 500 14px/1 var(--font-sans); letter-spacing: .01em; text-decoration: none; cursor: pointer;
+            transition: border-color .12s var(--ease), background-color .12s var(--ease), transform .08s var(--ease);
+        }
+        .btn:hover { border-color: var(--fg); }
+        .btn:active { transform: translateY(1px); }
+        .btn.primary { min-width: 180px; background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+        .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--fg)); border-color: transparent; }
+        .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
+        .actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+
+        /* Feedback */
+        .banner { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; font-size: 14px; border: 1px solid transparent; }
+        .banner.err { background: var(--err-soft); color: var(--err); border-color: color-mix(in srgb, var(--err) 25%, transparent); }
+        .banner.ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+        .banner.warn { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+        .banner.ok a { color: var(--fg); font-weight: 600; }
+        .list { list-style: none; margin: 0; padding: 0; }
+        .list li { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 14px; }
+        .list li:first-child { border-top: 0; }
+        .list .detail { color: var(--muted); margin-left: auto; text-align: right; overflow-wrap: anywhere; font: 400 13px/1.55 var(--font-mono); }
+        .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 600 11px/1 var(--font-sans); margin-top: 1px; }
+        .dot.ok { background: var(--ok-soft); color: var(--ok); }
+        .dot.fail { background: var(--err-soft); color: var(--err); }
+        .dot.warn { background: var(--warn-soft); color: var(--warn); }
+        .dot.pending { border: 1.5px solid var(--border-strong); }
+        .dot.running { border: 2px solid var(--fg); border-right-color: transparent; animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        details.req summary { cursor: pointer; font-weight: 500; list-style: none; display: flex; gap: 12px; align-items: center; }
+        details.req summary::-webkit-details-marker { display: none; }
+        details.req summary .sub { font-size: 13px; }
+        details.req[open] summary { margin-bottom: 12px; }
+        details.card > summary { border-radius: var(--radius-sm); }
+        #test-results { margin-top: 16px; }
+
+        /* Job view */
+        pre.log {
+            background: var(--log-bg); color: var(--log-fg); border-radius: var(--radius-sm);
+            padding: 16px; margin: 0; height: 440px; overflow: auto;
+            font: 400 12.5px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere;
+            scrollbar-color: var(--log-muted) transparent;
+        }
+        .badge { font: 500 11px/1 var(--font-mono); padding: 5px 9px; border-radius: 99px; text-transform: uppercase; letter-spacing: .08em; border: 1px solid transparent; }
+        .badge.running, .badge.queued { background: var(--field); color: var(--fg); border-color: var(--border-strong); }
+        .badge.success { background: var(--ok-soft); color: var(--ok); }
+        .badge.failed { background: var(--err-soft); color: var(--err); }
+        #job-elapsed { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+        .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .row h2 { margin: 0; }
+
+        code { font: 400 12.5px var(--font-mono); background: var(--field); border: 1px solid var(--border); padding: 1px 5px; border-radius: var(--radius-sm); }
+        footer { color: var(--muted); font: 400 12px var(--font-mono); letter-spacing: .02em; text-align: center; margin-top: 32px; }
+
+        .note { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.55; }
+        .note b { font-weight: 600; }
+
+        /* Language switcher: quiet text-like select in the header corner */
+        header.top .lang { margin-left: auto; align-self: flex-start; }
+        .lang select {
+            appearance: none; -webkit-appearance: none; min-height: 32px; width: auto;
+            padding: 5px 26px 5px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
+            background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center;
+            color: var(--muted); font: 500 13px/1.2 var(--font-sans); cursor: pointer;
+        }
+        .lang select:hover { border-color: var(--border); color: var(--fg); }
+        .lang select:focus-visible { border-color: var(--focus); color: var(--fg); }
+        .lang select option { color: var(--fg); background: var(--surface); }
+        @media (max-width: 760px) { header.top { flex-wrap: wrap; } }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation: none !important; }
+            html { scroll-behavior: auto; }
+        }
+    </style>
+</head>
+<body data-mode="new">
+<main>
+    <header class="top">
+        <img class="mark" src="<?= $logo ?>" alt="Magento" width="40" height="40">
+        <div>
+            <h1>Adobe Magento 2 Setup Wizard</h1>
+            <p class="sub"><?= $t('Install Magento or bring a store up from an existing database.') ?></p>
+        </div>
+        <?php if (count($languages) > 1): ?>
+            <form class="lang" method="get">
+                <?php if (!empty($_GET['job'])): ?>
+                    <input type="hidden" name="job" value="<?= $e($_GET['job']) ?>">
+                <?php endif; ?>
+                <select name="lang" aria-label="<?= $t('Language') ?>" onchange="this.form.submit()">
+                    <?php foreach ($languages as $code => $name): ?>
+                        <option value="<?= $e($code) ?>" lang="<?= $e(str_replace('_', '-', $code)) ?>" <?= $code === $locale ? 'selected' : '' ?>><?= $e($name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <noscript><button type="submit" class="btn"><?= $t('Change') ?></button></noscript>
+            </form>
+        <?php endif; ?>
+    </header>
+
+<?php if ($view === 'form'): ?>
+    <div class="banner err" id="form-banner" role="alert" hidden></div>
+
+    <details class="card req" <?= $requirementsPassed ? '' : 'open' ?>>
+        <summary>
+            <span class="dot <?= $requirementsPassed ? 'ok' : 'fail' ?>"><?= $requirementsPassed ? '✓' : '!' ?></span>
+            <?= $requirementsPassed ? $t('Environment ready') : $t('The environment does not meet the requirements') ?>
+            <span class="sub" style="margin-left:auto"><?= $t('details') ?></span>
+        </summary>
+        <ul class="list">
+            <?php foreach ($requirements as $check): ?>
+                <li>
+                    <span class="dot <?= $check['ok'] ? 'ok' : ($check['blocking'] ? 'fail' : 'warn') ?>"><?= $check['ok'] ? '✓' : '!' ?></span>
+                    <span><?= $e($check['label']) ?></span>
+                    <span class="detail"><?= $e($check['detail']) ?></span>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </details>
+
+    <form id="wizard" novalidate autocomplete="off">
+        <input type="hidden" name="csrf" value="<?= $e($csrf) ?>">
+
+        <section class="card">
+            <h2><?= $t('What do you want to do?') ?></h2>
+            <p class="hint"><?= $t('Both modes write %1. Only a fresh install creates the tables.', '<code>app/etc/env.php</code>') ?></p>
+            <div class="modes">
+                <label class="mode">
+                    <input type="radio" name="mode" value="new" checked>
+                    <b><?= $t('Fresh install') ?></b>
+                    <small><?= $t('Creates a new store in an empty database (%1).', '<code>setup:install</code>') ?></small>
+                </label>
+                <label class="mode">
+                    <input type="radio" name="mode" value="existing">
+                    <b><?= $t('Use an existing database') ?></b>
+                    <small><?= $t('Brings the store up from a database that is already installed, such as a production dump.') ?></small>
+                </label>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Database') ?></h2>
+            <p class="hint"><?= $t('MySQL/MariaDB server as seen from the PHP container.') ?></p>
+            <div class="grid">
+                <div class="field" data-field="db.host">
+                    <label class="lbl" for="db-host"><?= $t('Host') ?></label>
+                    <input type="text" id="db-host" name="db[host]" value="<?= $e($d['db']['host']) ?>" placeholder="db / db:3306">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="db.name">
+                    <label class="lbl" for="db-name"><?= $t('Database name') ?></label>
+                    <input type="text" id="db-name" name="db[name]" value="<?= $e($d['db']['name']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="db.user">
+                    <label class="lbl" for="db-user"><?= $t('User') ?></label>
+                    <input type="text" id="db-user" name="db[user]" value="<?= $e($d['db']['user']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="db.password">
+                    <label class="lbl" for="db-password"><?= $t('Password') ?></label>
+                    <input type="password" id="db-password" name="db[password]" value="<?= $e($d['db']['password']) ?>" autocomplete="new-password">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="db.prefix">
+                    <label class="lbl" for="db-prefix"><?= $t('Table prefix') ?></label>
+                    <input type="text" id="db-prefix" name="db[prefix]" value="<?= $e($d['db']['prefix']) ?>" maxlength="5" placeholder="<?= $t('(none)') ?>">
+                    <small class="help" data-only="existing"><?= $t('Must match the prefix used in the database.') ?></small>
+                    <small class="error"></small>
+                </div>
+            </div>
+            <div class="actions" style="justify-content:flex-start">
+                <button type="button" class="btn" id="test-btn"><?= $t('Test connections') ?></button>
+                <span class="sub"><?= $t('Checks the database, search engine and Redis.') ?></span>
+            </div>
+            <ul class="list" id="test-results" role="status" hidden></ul>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Store') ?></h2>
+            <p class="hint" data-only="existing"><?= $t('The base URL is updated in %1 so the store answers at this address.', '<code>core_config_data</code>') ?></p>
+            <p class="hint" data-only="new"><?= $t('Address the store will answer at.') ?></p>
+            <div class="grid">
+                <div class="field" data-field="base_url">
+                    <label class="lbl" for="base-url"><?= $t('Base URL') ?></label>
+                    <input type="url" id="base-url" name="base_url" value="<?= $e($d['base_url']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="backend_frontname">
+                    <label class="lbl" for="backend-frontname"><?= $t('Admin path') ?></label>
+                    <input type="text" id="backend-frontname" name="backend_frontname" value="<?= $e($d['backend_frontname']) ?>">
+                    <small class="help"><?= $t('Admin at %1', '<span id="admin-preview"></span>') ?></small>
+                    <small class="error"></small>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Administrator') ?></h2>
+            <label class="check" data-only="existing">
+                <input type="checkbox" name="admin[enabled]" value="1" id="admin-enabled">
+                <span><b><?= $t('Create or reset an admin user') ?></b>
+                <small><?= $t('If the username or email already exists in the database, its password is reset.') ?></small></span>
+            </label>
+            <div class="grid" id="admin-fields">
+                <div class="field" data-field="admin.firstname">
+                    <label class="lbl" for="admin-firstname"><?= $t('First name') ?></label>
+                    <input type="text" id="admin-firstname" name="admin[firstname]" value="<?= $e($d['admin']['firstname']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="admin.lastname">
+                    <label class="lbl" for="admin-lastname"><?= $t('Last name') ?></label>
+                    <input type="text" id="admin-lastname" name="admin[lastname]" value="<?= $e($d['admin']['lastname']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field wide" data-field="admin.email">
+                    <label class="lbl" for="admin-email"><?= $t('Email') ?></label>
+                    <input type="email" id="admin-email" name="admin[email]" value="<?= $e($d['admin']['email']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="admin.username">
+                    <label class="lbl" for="admin-username"><?= $t('Username') ?></label>
+                    <input type="text" id="admin-username" name="admin[username]" value="<?= $e($d['admin']['username']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="admin.password">
+                    <label class="lbl" for="admin-password"><?= $t('Password') ?></label>
+                    <input type="password" id="admin-password" name="admin[password]" autocomplete="new-password">
+                    <small class="help"><?= $t('At least 7 characters, with letters and numbers.') ?></small>
+                    <small class="error"></small>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" data-only="new">
+            <h2><?= $t('Language and region') ?></h2>
+            <p class="hint"><?= $t('Initial store settings; they can be changed later in the admin.') ?></p>
+            <div class="grid">
+                <div class="field" data-field="locale.language">
+                    <label class="lbl" for="locale-language"><?= $t('Store language') ?></label>
+                    <select id="locale-language" name="locale[language]">
+                        <?php foreach ($storeLocales['languages'] as $code => $label): ?>
+                            <option value="<?= $e($code) ?>" <?= $code === $d['locale']['language'] ? 'selected' : '' ?>><?= $e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="locale.currency">
+                    <label class="lbl" for="locale-currency"><?= $t('Currency') ?></label>
+                    <select id="locale-currency" name="locale[currency]">
+                        <?php foreach ($storeLocales['currencies'] as $code => $label): ?>
+                            <option value="<?= $e($code) ?>" <?= $code === $d['locale']['currency'] ? 'selected' : '' ?>><?= $e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="error"></small>
+                </div>
+                <div class="field wide" data-field="locale.timezone">
+                    <label class="lbl" for="locale-timezone"><?= $t('Time zone') ?></label>
+                    <select id="locale-timezone" name="locale[timezone]">
+                        <?php foreach ($storeLocales['timezones'] as $code => $label): ?>
+                            <option value="<?= $e($code) ?>" <?= $code === $d['locale']['timezone'] ? 'selected' : '' ?>><?= $e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="error"></small>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Search engine') ?></h2>
+            <p class="hint"><?= $t('OpenSearch or Elasticsearch 8, or basic MySQL search to run without a search service.') ?></p>
+            <label class="check" data-only="existing">
+                <input type="checkbox" name="search[write]" value="1" id="search-write" checked>
+                <span><b><?= $t('Save these settings to the database') ?></b>
+                <small><?= $t('Replaces the search host that came with the database (usually the production one).') ?></small></span>
+            </label>
+            <div class="grid" id="search-fields">
+                <div class="field" data-field="search.engine">
+                    <label class="lbl" for="search-engine"><?= $t('Engine') ?></label>
+                    <select id="search-engine" name="search[engine]">
+                        <?php foreach ($searchEngines as $code => $label): ?>
+                            <option value="<?= $e($code) ?>" <?= $code === $d['search']['engine'] ? 'selected' : '' ?>><?= $t($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="search.host" data-search-server>
+                    <label class="lbl" for="search-host"><?= $t('Host') ?></label>
+                    <input type="text" id="search-host" name="search[host]" value="<?= $e($d['search']['host']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="search.port" data-search-server>
+                    <label class="lbl" for="search-port"><?= $t('Port') ?></label>
+                    <input type="number" id="search-port" name="search[port]" value="<?= $e($d['search']['port']) ?>" min="1" max="65535">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="search.prefix" data-search-server>
+                    <label class="lbl" for="search-prefix"><?= $t('Index prefix') ?></label>
+                    <input type="text" id="search-prefix" name="search[prefix]" placeholder="<?= $t('(default: magento2)') ?>">
+                    <small class="error"></small>
+                </div>
+                <p class="note wide" id="search-mysql-note" hidden>
+                    <?= $t('No search service needed: category pages and search are answered straight from MySQL. Limits: search only matches name and SKU (no relevance ranking or typo tolerance), layered navigation filters are not shown, and large catalogs are slower. You can switch to OpenSearch later in %1.', '<b>Stores › Configuration › Catalog › Catalog › Catalog Search</b>') ?>
+                </p>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Cache and session') ?></h2>
+            <label class="check">
+                <input type="checkbox" name="redis[enabled]" value="1" id="redis-enabled" <?= $d['redis']['enabled'] ? 'checked' : '' ?>>
+                <span><b><?= $t('Use Redis') ?></b>
+                <small><?= $t('Default cache (db 0), page cache (db 1) and sessions (db 2). Without Redis everything is stored in files under %1.', '<code>var/</code>') ?></small></span>
+            </label>
+            <div class="grid" id="redis-fields">
+                <div class="field" data-field="redis.host">
+                    <label class="lbl" for="redis-host"><?= $t('Host') ?></label>
+                    <input type="text" id="redis-host" name="redis[host]" value="<?= $e($d['redis']['host']) ?>">
+                    <small class="error"></small>
+                </div>
+                <div class="field" data-field="redis.port">
+                    <label class="lbl" for="redis-port"><?= $t('Port') ?></label>
+                    <input type="number" id="redis-port" name="redis[port]" value="<?= $e($d['redis']['port']) ?>" min="1" max="65535">
+                    <small class="error"></small>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2><?= $t('Options') ?></h2>
+            <div data-only="new">
+                <label class="check field" data-field="options.cleanup_db">
+                    <input type="checkbox" name="options[cleanup_db]" value="1">
+                    <span><b><?= $t('Drop existing tables') ?></b>
+                    <small><?= $t('Required when the database is not empty. All data in the database will be lost.') ?></small>
+                    <small class="error"></small></span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="options[sample_data]" value="1" <?= $sampleDataAvailable ? 'checked' : 'disabled' ?>>
+                    <span><b><?= $t('Install sample data') ?></b>
+                    <?php if ($sampleDataAvailable): ?>
+                        <small><?= $t('Luma demo store: products, categories, CMS pages, customers and orders. Unticked, the store starts empty; the sample data modules stay in the code, disabled.') ?></small>
+                    <?php else: ?>
+                        <small><?= $t('Sample data is not in this codebase. Add it with %1 (needs repo.magento.com keys) and reload this page.', '<code>bin/magento sampledata:deploy</code>') ?></small>
+                    <?php endif; ?></span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="options[use_rewrites]" value="1" checked>
+                    <span><b><?= $t('Search engine friendly URLs') ?></b> <small><?= $t('Removes %1 from URLs.', '<code>index.php</code>') ?></small></span>
+                </label>
+            </div>
+            <div data-only="existing">
+                <label class="check">
+                    <input type="checkbox" name="options[reset_urls]" value="1" checked>
+                    <span><b><?= $t('Clear inherited URLs and cookies') ?></b>
+                    <small><?= $t('Removes per-website/store base URLs, the static/media CDN and the cookie domain. Without this the store may redirect to the original domain.') ?></small></span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="options[setup_upgrade]" value="1" checked>
+                    <span><b><?= $t('Run setup:upgrade') ?></b>
+                    <small><?= $t('Aligns the database with the modules in this codebase. Required when the code is a different version.') ?></small></span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" name="options[reindex]" value="1">
+                    <span><b><?= $t('Reindex') ?></b>
+                    <small><?= $t('Fills the search index. May take a while on large catalogs.') ?></small></span>
+                </label>
+            </div>
+            <label class="check">
+                <input type="checkbox" name="options[disable_2fa]" value="1">
+                <span><b><?= $t('Disable two-factor authentication') ?></b>
+                <small><?= $t('Disables %1. Use only in local environments.', '<code>Magento_TwoFactorAuth</code>') ?></small></span>
+            </label>
+        </section>
+
+        <details class="card">
+            <summary style="cursor:pointer;font-weight:600"><?= $t('Advanced') ?></summary>
+            <div class="grid" style="margin-top:14px">
+                <div class="field wide" data-field="crypt_key">
+                    <label class="lbl" for="crypt-key"><?= $t('Encryption key') ?></label>
+                    <input type="text" id="crypt-key" name="crypt_key" placeholder="<?= $t('(generate automatically)') ?>" spellcheck="false">
+                    <small class="help" data-only="existing"><?= $t('Use the %1 from the source %2. Without it, encrypted values in the database (payment, integration and SMTP credentials) stop working.', '<code>crypt/key</code>', '<code>env.php</code>') ?></small>
+                    <small class="help" data-only="new"><?= $t('Leave empty to generate a new one.') ?></small>
+                    <small class="error"></small>
+                </div>
+            </div>
+        </details>
+
+        <div class="actions">
+            <button type="submit" class="btn primary" id="submit-btn" <?= $requirementsPassed ? '' : 'disabled' ?>>
+                <span data-only="new"><?= $t('Install') ?></span><span data-only="existing"><?= $t('Configure the store') ?></span>
+            </button>
+        </div>
+    </form>
+
+<?php elseif ($view === 'job'): ?>
+    <section class="card">
+        <div class="row">
+            <h2 id="job-title"><?= $t('Running') ?></h2>
+            <span class="badge" id="job-badge"></span>
+            <span class="sub" id="job-elapsed" style="margin-left:auto"></span>
+        </div>
+        <p class="hint" style="margin-top:6px"><?= $t('The run continues even if you close this page.') ?></p>
+        <ul class="list" id="job-steps"></ul>
+    </section>
+    <div class="banner" id="job-result" role="status" hidden></div>
+    <section class="card">
+        <div class="row" style="margin-bottom:12px">
+            <h2><?= $t('Log') ?></h2>
+            <label class="check" style="margin-left:auto;padding:0"><input type="checkbox" id="follow" checked><span><small><?= $t('Follow') ?></small></span></label>
+        </div>
+        <pre class="log" id="log"></pre>
+    </section>
+
+<?php elseif ($view === 'busy'): ?>
+    <section class="card">
+        <div class="row"><span class="dot running"></span><h2><?= $t('An installation is running') ?></h2></div>
+        <p class="hint" style="margin-top:8px">
+            <?= $t('It was started in another browser; its progress and log are only visible there. Reload this page when it has finished.') ?>
+        </p>
+    </section>
+
+<?php else: ?>
+    <section class="card">
+        <div class="row"><span class="dot ok">✓</span><h2><?= $t('Magento is already installed') ?></h2></div>
+        <p class="hint" style="margin-top:8px">
+            <?= $t('The wizard stays locked while %1 has an install date (%2). To use it again, remove or rename that file.', '<code>app/etc/env.php</code>', '<code>install/date</code>') ?>
+        </p>
+        <div class="actions" style="justify-content:flex-start">
+            <?php if (!empty($installedUrls['store'])): ?>
+                <a class="btn primary" href="<?= $e($installedUrls['store']) ?>"><?= $t('Open the storefront') ?></a>
+            <?php endif; ?>
+            <?php if (!empty($installedUrls['admin'])): ?>
+                <a class="btn" href="<?= $e($installedUrls['admin']) ?>"><?= $t('Open the admin') ?></a>
+            <?php endif; ?>
+            <?php if ($job !== null): ?>
+                <a class="btn" href="?job=<?= $e($job['id']) ?>"><?= $t('View the log of the last run') ?></a>
+            <?php endif; ?>
+        </div>
+    </section>
+<?php endif; ?>
+
+    <footer>Jamacio_SetupWizard</footer>
+</main>
+
+<script type="application/json" id="ctx"><?= json_encode(['view' => $view, 'job' => $job, 'text' => $scriptText], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+<script>
+(() => {
+    'use strict';
+    const ctx = JSON.parse(document.getElementById('ctx').textContent);
+    const __ = (text, ...args) => args.reduce(
+        (out, arg, index) => out.split(`%${index + 1}`).join(arg),
+        ctx.text[text] ?? text
+    );
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const el = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    };
+
+    async function post(action, form) {
+        const data = new FormData(form);
+        data.set('action', action);
+        const response = await fetch(location.pathname + location.search, { method: 'POST', body: data, credentials: 'same-origin' });
+        try {
+            return await response.json();
+        } catch (e) {
+            return { ok: false, message: __('Unexpected server response (HTTP %1).', response.status) };
+        }
+    }
+
+    if (ctx.view === 'form') {
+        const form = $('#wizard');
+        const banner = $('#form-banner');
+
+        const sync = () => {
+            const mode = form.elements.mode.value;
+            document.body.dataset.mode = mode;
+            $('#admin-fields').hidden = mode === 'existing' && !$('#admin-enabled').checked;
+            $('#redis-fields').hidden = !$('#redis-enabled').checked;
+            $('#search-fields').style.opacity = mode === 'existing' && !$('#search-write').checked ? '.5' : '';
+            const noSearchServer = form.elements['search[engine]'].value === 'mysql_basic';
+            form.querySelectorAll('[data-search-server]').forEach(field => { field.hidden = noSearchServer; });
+            $('#search-mysql-note').hidden = !noSearchServer;
+            const base = form.elements.base_url.value.replace(/\/?$/, '/');
+            $('#admin-preview').textContent = base + (form.elements.backend_frontname.value || 'admin') + '/';
+        };
+        form.addEventListener('input', sync);
+        form.addEventListener('change', sync);
+        sync();
+
+        const clearErrors = () => {
+            banner.hidden = true;
+            form.querySelectorAll('.field.invalid').forEach(field => field.classList.remove('invalid'));
+        };
+        const showErrors = (result) => {
+            banner.textContent = result.message || __('Could not continue.');
+            banner.hidden = false;
+            let first = null;
+            Object.entries(result.errors || {}).forEach(([key, message]) => {
+                const field = form.querySelector(`[data-field="${key}"]`);
+                if (!field) return;
+                field.classList.add('invalid');
+                $('small.error', field).textContent = message;
+                first = first || field;
+            });
+            (first || banner).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
+        $('#test-btn').addEventListener('click', async (event) => {
+            const button = event.currentTarget;
+            const list = $('#test-results');
+            button.disabled = true;
+            button.textContent = __('Testing…');
+            const result = await post('test', form);
+            button.disabled = false;
+            button.textContent = __('Test connections');
+            list.replaceChildren();
+            list.hidden = false;
+            if (!result.ok) {
+                list.append(row(__('Test'), { ok: false, message: result.message }));
+                return;
+            }
+            const labels = { db: __('Database'), search: __('Search engine'), redis: __('Redis') };
+            Object.entries(result.results).forEach(([key, item]) => list.append(row(labels[key], item)));
+        });
+
+        const row = (label, item) => {
+            const li = el('li');
+            const warn = item.ok && item.exists === false;
+            li.append(
+                el('span', `dot ${item.ok ? (warn ? 'warn' : 'ok') : 'fail'}`, item.ok ? (warn ? '!' : '✓') : '✕'),
+                el('span', '', label),
+                el('span', 'detail', item.message)
+            );
+            return li;
+        };
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearErrors();
+            const button = $('#submit-btn');
+            button.disabled = true;
+            const result = await post('start', form);
+            if (result.ok) {
+                location.href = `${location.pathname}?job=${encodeURIComponent(result.job)}`;
+                return;
+            }
+            button.disabled = false;
+            showErrors(result);
+        });
+    }
+
+    if (ctx.view === 'job') {
+        const id = ctx.job.id;
+        const log = $('#log');
+        const labels = { queued: __('Queued'), running: __('Running'), success: __('Done'), failed: __('Failed') };
+        const icons = { pending: ['pending', ''], running: ['running', ''], success: ['ok', '✓'], failed: ['fail', '✕'] };
+        let offset = 0;
+
+        const render = (status) => {
+            $('#job-title').textContent = status.meta.mode === 'existing' ? __('Configuring the store') : __('Installing Magento');
+            const badge = $('#job-badge');
+            badge.className = `badge ${status.state}`;
+            badge.textContent = labels[status.state] || status.state;
+
+            const start = status.started_at || status.created_at;
+            const end = status.finished_at || Math.floor(Date.now() / 1000);
+            const seconds = Math.max(0, end - start);
+            $('#job-elapsed').textContent = `${Math.floor(seconds / 60)}min ${String(seconds % 60).padStart(2, '0')}s`;
+
+            $('#job-steps').replaceChildren(...status.steps.map(step => {
+                const [cls, glyph] = icons[step.state] || icons.pending;
+                const li = el('li');
+                li.append(el('span', `dot ${cls}`, glyph), el('span', '', step.label));
+                return li;
+            }));
+
+            const result = $('#job-result');
+            if (status.state === 'success') {
+                result.className = 'banner ok';
+                result.replaceChildren(el('b', '', __('Done!') + ' '), document.createTextNode(__('The store is live.') + ' '));
+                const links = [[status.meta.store_url, __('Open the storefront')], [status.meta.admin_url, __('Open the admin')]];
+                links.forEach(([href, text]) => {
+                    const a = el('a', '', text);
+                    a.href = href;
+                    a.style.marginRight = '14px';
+                    result.append(a);
+                });
+                if (status.meta.admin_user) {
+                    result.append(el('span', 'sub', __('(user: %1)', status.meta.admin_user)));
+                }
+                result.hidden = false;
+            } else if (status.state === 'failed') {
+                result.className = 'banner err';
+                result.textContent = status.error || __('The run failed. See the log.');
+                result.hidden = false;
+            }
+        };
+
+        const poll = async () => {
+            let status;
+            try {
+                const response = await fetch(`${location.pathname}?action=status&job=${encodeURIComponent(id)}&offset=${offset}`, { credentials: 'same-origin' });
+                status = await response.json();
+            } catch (e) {
+                setTimeout(poll, 3000);
+                return;
+            }
+            if (!status.ok) {
+                $('#job-result').className = 'banner err';
+                $('#job-result').textContent = status.message;
+                $('#job-result').hidden = false;
+                return;
+            }
+            if (status.log) {
+                log.append(document.createTextNode(status.log));
+                if ($('#follow').checked) log.scrollTop = log.scrollHeight;
+            }
+            offset = status.offset;
+            render(status);
+            if (status.state === 'queued' || status.state === 'running') {
+                setTimeout(poll, status.log ? 500 : 1500);
+            }
+        };
+        render(ctx.job);
+        poll();
+    }
+})();
+</script>
+</body>
+</html>

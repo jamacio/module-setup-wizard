@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Jamacio. All rights reserved.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!--
+        "mysql_basic" search engine (catalog/search/engine = mysql_basic): Magento runs without
+        OpenSearch or Elasticsearch. Model/MysqlSearch/Adapter answers the search requests with SQL
+        (category listing, name/SKU search, price and attribute filters); indexing, suggestions and
+        price aggregations are empty implementations. Collections, layers and criteria reuse the
+        generic classes of Magento_Elasticsearch, registered below exactly as Magento_OpenSearch does.
+        The code is not "mysql": Magento 2.4 rejects that one (the engine removed in 2.4.0).
+    -->
+    <type name="Magento\Search\Model\EngineResolver">
+        <arguments>
+            <argument name="engines" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">mysql_basic</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Search\Model\Adminhtml\System\Config\Source\Engine">
+        <arguments>
+            <argument name="engines" xsi:type="array">
+                <item sortOrder="90" name="mysql_basic" xsi:type="string">MySQL (basic, no search service)</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Search\Model\AdapterFactory">
+        <arguments>
+            <argument name="adapters" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\Adapter</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\CatalogSearch\Model\Indexer\IndexerHandlerFactory">
+        <arguments>
+            <argument name="handlers" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\IndexerHandler</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\CatalogSearch\Model\Indexer\IndexStructureFactory">
+        <arguments>
+            <argument name="structures" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\IndexStructure</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\CatalogSearch\Model\ResourceModel\EngineProvider">
+        <arguments>
+            <argument name="engines" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\Engine</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Framework\Search\Dynamic\DataProviderFactory">
+        <arguments>
+            <argument name="dataProviders" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\DynamicDataProvider</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Framework\Search\Dynamic\IntervalFactory">
+        <arguments>
+            <argument name="intervals" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\Interval</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\AdvancedSearch\Model\SuggestedQueries">
+        <arguments>
+            <argument name="data" xsi:type="array">
+                <item name="mysql_basic" xsi:type="string">Jamacio\SetupWizard\Model\MysqlSearch\Suggestions</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\Search\Model\Search\PageSizeProvider">
+        <arguments>
+            <argument name="pageSizeBySearchEngine" xsi:type="array">
+                <item name="mysql_basic" xsi:type="number">10000</item>
+            </argument>
+        </arguments>
+    </type>
+    <virtualType name="elasticsearchLayerCategoryItemCollectionProvider">
+        <arguments>
+            <argument name="factories" xsi:type="array">
+                <item name="mysql_basic" xsi:type="object">elasticsearchCategoryCollectionFactory</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <virtualType name="elasticsearchLayerSearchItemCollectionProvider">
+        <arguments>
+            <argument name="factories" xsi:type="array">
+                <item name="mysql_basic" xsi:type="object">elasticsearchFulltextSearchCollectionFactory</item>
+            </argument>
+        </arguments>
+    </virtualType>
+    <type name="Magento\CatalogSearch\Model\Search\ItemCollectionProvider">
+        <arguments>
+            <argument name="factories" xsi:type="array">
+                <item name="mysql_basic" xsi:type="object">elasticsearchAdvancedCollectionFactory</item>
+            </argument>
+        </arguments>
+    </type>
+    <type name="Magento\CatalogSearch\Model\Advanced\ProductCollectionPrepareStrategyProvider">
+        <arguments>
+            <argument name="strategies" xsi:type="array">
+                <item name="mysql_basic" xsi:type="object">Magento\Elasticsearch\Model\Advanced\ProductCollectionPrepareStrategy</item>
+            </argument>
+        </arguments>
+    </type>
+</config>
